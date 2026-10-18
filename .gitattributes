@@ -1,0 +1,2 @@
+# Bundled libraries stay byte-for-byte as published (no line-ending conversion).
+ui/vendor/** -text
