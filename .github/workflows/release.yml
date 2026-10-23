@@ -59,7 +59,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p src-tauri/binaries
-          gh release download "$FFMPEG_TAG" -D src-tauri/binaries -p "viewer-ffmpeg-${{ matrix.target }}*" -p "FFMPEG-*.txt"
+          # The universal macOS app is built per architecture first, so it needs those two binaries as well.
+          pats=(-p "viewer-ffmpeg-${{ matrix.target }}*" -p "FFMPEG-*.txt")
+          if [ "${{ matrix.target }}" = universal-apple-darwin ]; then pats+=(-p "viewer-ffmpeg-aarch64-apple-darwin" -p "viewer-ffmpeg-x86_64-apple-darwin"); fi
+          gh release download "$FFMPEG_TAG" -D src-tauri/binaries "${pats[@]}"
           chmod +x src-tauri/binaries/viewer-ffmpeg-* || true
           ls -la src-tauri/binaries
 
