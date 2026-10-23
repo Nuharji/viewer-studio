@@ -13,7 +13,7 @@ env:
   APP_BIN: viewer-studio
   APP_NAME: Viewer Studio
   # The FFmpeg build (pre-release made by ffmpeg.yml) that goes into the installers as viewer-ffmpeg.
-  FFMPEG_TAG: ffmpeg-8.1.3-2
+  FFMPEG_TAG: ffmpeg-8.1.3-3
 
 jobs:
   build:

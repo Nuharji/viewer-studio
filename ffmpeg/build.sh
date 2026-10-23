@@ -65,7 +65,8 @@ case "$target" in
     ;;
   windows)
     # MSYS2 (MINGW64 / MINGW32 / CLANGARM64): Media Foundation for H.264, Windows threads, everything linked statically.
-    extra=(--enable-mediafoundation --enable-d3d11va --enable-dxva2 --enable-w32threads --extra-ldflags=-static --pkg-config-flags=--static)
+    # (gfxcapture: screen capture in C++/WinRT — not needed, and FFmpeg's VERSION file clashes with <version> there.)
+    extra=(--enable-mediafoundation --enable-d3d11va --enable-dxva2 --disable-filter=gfxcapture --enable-w32threads --extra-ldflags=-static --pkg-config-flags=--static)
     encoders+=,h264_mf
     command -v gcc >/dev/null || extra+=(--cc=clang --cxx=clang++)   # CLANGARM64 has only clang
     ;;
