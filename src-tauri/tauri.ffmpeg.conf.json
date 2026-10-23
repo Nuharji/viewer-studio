@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "externalBin": ["binaries/viewer-ffmpeg"],
+    "resources": {
+      "binaries/FFMPEG-COPYING.LGPLv2.1.txt": "FFMPEG-COPYING.LGPLv2.1.txt",
+      "binaries/FFMPEG-SOURCE.txt": "FFMPEG-SOURCE.txt"
+    }
+  }
+}

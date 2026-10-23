@@ -6,9 +6,11 @@ use base64::Engine;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
-pub const IMAGE: &[&str] = &["jpg", "jpeg", "jfif", "png", "gif", "webp", "avif", "bmp", "ico", "svg"];
-pub const VIDEO: &[&str] = &["mp4", "m4v", "webm", "mov", "ogv", "mkv"];
-pub const AUDIO: &[&str] = &["mp3", "wav", "ogg", "oga", "opus", "flac", "m4a", "aac", "weba"];
+pub const IMAGE: &[&str] = &["jpg", "jpeg", "jfif", "png", "gif", "webp", "avif", "bmp", "ico", "svg", "heic", "heif", "tif", "tiff"];
+pub const VIDEO: &[&str] = &["mp4", "m4v", "webm", "mov", "ogv", "mkv", "avi", "wmv", "asf", "flv", "f4v", "mpg", "mpeg", "m2v", "vob",
+    "ts", "m2ts", "mts", "3gp", "3g2", "divx", "ogm", "rm", "rmvb"];
+pub const AUDIO: &[&str] = &["mp3", "wav", "ogg", "oga", "opus", "flac", "m4a", "aac", "weba", "wma", "ac3", "eac3", "dts", "aiff", "aif",
+    "ape", "mka", "amr", "mp2", "mpc", "wv", "caf"];
 pub const MODEL: &[&str] = &["stl", "obj", "glb", "gltf", "ply", "3mf"];
 
 pub fn ext_of(p: &Path) -> String {

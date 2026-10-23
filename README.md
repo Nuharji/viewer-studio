@@ -25,8 +25,15 @@ and controls as the other Studio apps.
 The app can only read the folders you open (the asset protocol starts with an empty scope). It doesn't register itself
 as the default program for any file type; use "Open with" or drag files onto it.
 
-Formats the WebView can't play (MKV/AVI with HEVC, WMV, DivX, AC-3 …) and HEIC photos come with the next version:
-a small LGPL-only FFmpeg built from the official sources.
+Formats the WebView can't play — MKV, AVI, WMV, MPG, TS, HEVC on Windows / Linux, AC-3 / DTS / WMA sound, HEIC and TIFF
+photos — go through a small LGPL-only FFmpeg that ships next to the program (`viewer-ffmpeg`, see `ffmpeg/build.sh` and
+`src-tauri/src/convert.rs`): if only the container is the problem the streams are copied (seconds), otherwise what can't be
+played is converted once (H.264/AAC with the system's encoder on macOS and Windows, VP8/Opus on Linux) and kept in the cache.
+
+FFmpeg is built unchanged from the official sources in GitHub Actions (`.github/workflows/ffmpeg.yml`, release
+`ffmpeg-<version>-<n>`), without GPL or non-free parts, and is not linked into the app. For a local build put a binary
+named `viewer-ffmpeg-<target triple>` into `src-tauri/binaries/` (e.g. `ffmpeg/build.sh macos-arm64 out`), or let
+`STUDIO_FFMPEG` point to one; without it the app works as before.
 
 ## Layout
 ```

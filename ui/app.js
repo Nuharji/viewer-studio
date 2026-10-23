@@ -108,6 +108,7 @@ const goTo = i => { const tab = cur(); if (!tab || i === tab.i) return; leaveMed
 const stage = $('#stage');
 let media = null, view3d = null, view3dSeq = 0, info = null;
 function leaveMedia() {
+  cancelPrep();
   if (media) { const e = curEntry(); if (e && Number.isFinite(media.duration) && media.currentTime > 0) rememberPos(e.path, media); media.pause(); media.removeAttribute('src'); media.load(); media = null; }
   if (view3d) { view3d.dispose(); view3d = null; }
   view3dSeq++;
@@ -150,7 +151,17 @@ function showImage(e, tab) {
   const img = new Image();
   img.className = 'photo'; img.draggable = false; img.alt = e.name;
   img.onload = () => { v.w = img.naturalWidth; v.h = img.naturalHeight; if (cur() === tab) { layoutImage(); updateStatus(); renderDock(); } };
-  img.onerror = () => { if (cur() === tab) failed('err.image', e); };
+  img.onerror = async () => {
+    if (cur() !== tab || curEntry() !== e) return;
+    // HEIC, TIFF … : the bundled FFmpeg turns the photo into a JPEG (once; it is kept in the cache).
+    if (invoke && !img.dataset.prepared) {
+      img.dataset.prepared = '1';
+      const p = await prepare(e, 'image', stage, 'prep.image');
+      if (p && curEntry() === e) { img.src = fileUrl(p); return; }
+      if (curEntry() !== e) return;
+    }
+    failed('err.image', e);
+  };
   img.src = fileUrl(e.path);
   stage.append(img);
   if (invoke && ext3(e) !== 'svg') invoke('photo_info', {path: e.path}).then(p => { if (curEntry() === e) { info = p; renderDock(); } }).catch(() => {});
@@ -227,6 +238,54 @@ function startSlideshow() {
 }
 function stopSlideshow() { if (slideTimer) { clearInterval(slideTimer); slideTimer = 0; } document.body.classList.remove('slideshow'); }
 
+/* ----- Formats the WebView can't play: a prepared copy from the bundled FFmpeg (Rust: convert.rs) ----- */
+/* The file is looked at first; if the WebView plays it as it is, nothing happens. Otherwise it is remuxed (seconds) or
+   converted once, with a progress card, and the copy is kept in the cache. Moving on to another file stops it. */
+let prepSeq = 0, prepId = 0, prepCount = 0;
+if (window.__TAURI__) window.__TAURI__.event.listen('media-progress', ev => {
+  const p = ev.payload || {}, card = stage.querySelector('.prep');
+  if (p.id !== prepId || !card) return;
+  card.querySelector('.prep-bar i').style.width = (p.done * 100).toFixed(1) + '%';
+  card.querySelector('.prep-pct').textContent = Math.round(p.done * 100) + ' %';
+});
+function cancelPrep() {
+  prepSeq++;
+  if (prepId && invoke) invoke('media_cancel', {id: prepId}).catch(() => {});
+  prepId = 0;
+}
+function prepCard(host, key) {
+  const card = document.createElement('div');
+  card.className = 'prep';
+  card.innerHTML = `<b>${esc(t(key))}</b><div class="prep-bar"><i></i></div><div class="prep-row"><span>${esc(t('prep.once'))}</span><span class="prep-pct"></span></div>`;
+  host.append(card);
+  return card;
+}
+/* The path the player should load: the file itself or a prepared copy; null when another file is shown meanwhile. */
+async function playablePath(e, kind, host) {
+  if (!invoke) return e.path;
+  const seq = ++prepSeq;
+  const c = await invoke('media_check', {path: e.path, kind}).catch(() => ({plan: 'native'}));
+  if (seq !== prepSeq) return null;
+  if (c.ready) return c.ready;
+  if (c.plan !== 'remux' && c.plan !== 'convert') return e.path;
+  return prepare(e, kind, host, c.plan === 'remux' ? 'prep.remux' : 'prep.convert', seq);
+}
+async function prepare(e, kind, host, key, seq = ++prepSeq) {
+  const id = prepId = ++prepCount, card = prepCard(host, key);
+  try {
+    const out = await invoke('media_prepare', {path: e.path, kind, id});
+    if (seq !== prepSeq) return null;
+    return out;
+  } catch (err) {
+    if (seq !== prepSeq || String(err) === 'cancelled') return null;
+    toast(t('prep.fail', {e: String(err)}));
+    return kind === 'image' ? null : e.path;
+  } finally {
+    card.remove();
+    if (prepId === id) prepId = 0;
+  }
+}
+
 /* ----- Video and audio: own controls over the picture ----- */
 let abLoop = null, hideT = 0;
 async function showMedia(e) {
@@ -254,7 +313,7 @@ async function showMedia(e) {
       <button class="cbtn" data-act="fullscreen" title="${esc(tip('fullscreen'))}">${ICONS.full}</button>` : ''}
     </div></div>`);
   stage.append(wrap);
-  m.src = fileUrl(e.path);
+  playablePath(e, e.kind, wrap).then(p => { if (p && media === m) m.src = fileUrl(p); });
   const seek = $('#seek');
   const paint = () => {
     if (media !== m) return;
@@ -500,7 +559,7 @@ function updateStatus() {
   $('#stZoom').hidden = !e || e.kind !== 'image'; $('#stTime').hidden = !e || (e.kind !== 'video' && e.kind !== 'audio');
   if (e && e.kind === 'image') layoutImage();
 }
-const FORMATS = {image: 'JPG · PNG · GIF · WebP · AVIF · BMP · ICO · SVG', video: 'MP4 · WebM · MOV · M4V · OGV', audio: 'MP3 · FLAC · WAV · OGG · Opus · M4A', model: 'STL · OBJ · GLB · GLTF · 3MF · PLY'};
+const FORMATS = {image: 'JPG · PNG · GIF · WebP · AVIF · HEIC · TIFF · BMP · SVG', video: 'MP4 · MKV · MOV · AVI · WMV · WebM · MPG · TS', audio: 'MP3 · FLAC · WAV · M4A · OGG · WMA · AC-3', model: 'STL · OBJ · GLB · GLTF · 3MF · PLY'};
 function renderEmpty() {
   $('#formats').innerHTML = Object.entries(FORMATS).map(([k, f]) => `<div><b>${ICONS['k_' + k]}${esc(t('kinds.' + k))}</b><small>${esc(f)}</small></div>`).join('');
   $('#recentBox').innerHTML = recent.length ? `<div class="sect">${esc(t('ui.recent'))}</div>` + recent.map((r, k) =>

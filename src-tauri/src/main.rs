@@ -1,6 +1,7 @@
 // Hide the console window in release builds on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod convert;
 mod media;
 mod shared;
 
@@ -227,6 +228,7 @@ fn main() {
             let _ = app.emit("context-menu", event.id().as_ref());
         })
         .manage(Mutex::new(Pending { ready: false, paths: args }))
+        .manage(convert::Jobs::default())
         .invoke_handler(tauri::generate_handler![
             shared::shared_get,
             shared::shared_set,
@@ -238,6 +240,9 @@ fn main() {
             photo_info,
             audio_info,
             subtitles,
+            convert::media_check,
+            convert::media_prepare,
+            convert::media_cancel,
             save_bytes,
             save_text,
             reveal,

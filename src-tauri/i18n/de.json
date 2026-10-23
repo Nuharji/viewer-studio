@@ -180,7 +180,7 @@
   "about.version": "Version {v}",
   "about.p1": "Viewer Studio zeigt Fotos, Videos, Musik und 3D-Modelle von deinem Computer. Nichts wird hochgeladen, ein Konto braucht es nicht.",
   "about.p2": "Teil der Studio-Familie (Markdown, PDF, Data, Slides, Plan Studio).",
-  "about.licenses": "3D-Ansicht: three.js (MIT). Foto-Details: kamadak-exif (BSD). Audio-Tags: lofty (MIT / Apache-2.0).",
+  "about.licenses": "3D-Ansicht: three.js (MIT). Foto-Details: kamadak-exif (BSD). Audio-Tags: lofty (MIT / Apache-2.0). Weitere Formate: FFmpeg (LGPL 2.1, https://ffmpeg.org — unverändert aus den offiziellen Quellen gebaut; Lizenz und Quelle liegen beim Programm).",
   "set.viewing": "Anzeige",
   "set.stage": "Hintergrund hinter Fotos und Videos",
   "set.playback": "Wiedergabe",
@@ -196,5 +196,10 @@
   "stage.black": "Schwarz",
   "stage.theme": "Wie das Design",
   "stage.light": "Hell",
-  "stage.checker": "Schachbrett (zeigt Transparenz)"
+  "stage.checker": "Schachbrett (zeigt Transparenz)",
+  "prep.remux": "Wird für die Wiedergabe vorbereitet…",
+  "prep.convert": "Wird umgewandelt, damit es abgespielt werden kann…",
+  "prep.image": "Foto wird umgewandelt…",
+  "prep.once": "Nur beim ersten Mal — danach öffnet es sofort.",
+  "prep.fail": "Konnte nicht vorbereitet werden: {e}"
 }

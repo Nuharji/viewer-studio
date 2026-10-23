@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 — 2026-10-23
+- Plays what the WebView can't: MKV, AVI, WMV, ASF, FLV, MPG, VOB, TS / M2TS, 3GP, RM …, HEVC on Windows and Linux,
+  AC-3, E-AC-3, DTS, WMA, APE, AIFF … sound, and shows HEIC / HEIF and TIFF photos. A small LGPL-only FFmpeg ships with the
+  app: if only the container is the problem the streams are copied (takes seconds), otherwise what can't be played is
+  converted once — with the system's H.264 encoder on macOS and Windows, VP8 / Opus on Linux — with a progress card.
+  The copy is kept in the cache (at most 4 GB), so the file opens at once the next time; moving on stops the conversion.
+- Files the WebView plays as they are (MP4, MOV, WebM, MP3 …) stay untouched.
+
 ## 0.1.1 — 2026-10-23
 - Start page: the app tile shows the letters "Vw" like the other Studio apps, instead of the whole app icon inside the tile.
 

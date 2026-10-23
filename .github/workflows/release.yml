@@ -12,6 +12,8 @@ permissions:
 env:
   APP_BIN: viewer-studio
   APP_NAME: Viewer Studio
+  # The FFmpeg build (pre-release made by ffmpeg.yml) that goes into the installers as viewer-ffmpeg.
+  FFMPEG_TAG: ffmpeg-8.1.3-1
 
 jobs:
   build:
@@ -51,8 +53,19 @@ jobs:
       - name: Generate icons
         run: npx --yes @tauri-apps/cli@2 icon app-icon.png
 
+      - name: Get FFmpeg
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p src-tauri/binaries
+          gh release download "$FFMPEG_TAG" -D src-tauri/binaries -p "viewer-ffmpeg-${{ matrix.target }}*" -p "FFMPEG-*.txt"
+          chmod +x src-tauri/binaries/viewer-ffmpeg-* || true
+          ls -la src-tauri/binaries
+
       - name: Build
-        run: npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+        shell: bash
+        run: npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config "$GITHUB_WORKSPACE/src-tauri/tauri.ffmpeg.conf.json"
 
       - name: Collect files
         shell: pwsh

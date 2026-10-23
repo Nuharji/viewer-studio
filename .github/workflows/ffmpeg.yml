@@ -1,0 +1,112 @@
+name: FFmpeg
+
+# Builds the small LGPL-only FFmpeg (ffmpeg/build.sh) for every platform and publishes it as the pre-release
+# "ffmpeg-<version>-<n>". The app release (release.yml) takes its viewer-ffmpeg binaries from there.
+# Run it by pushing a tag like ffmpeg-8.1.3-1 (a new number when ffmpeg/build.sh changes).
+on:
+  push:
+    tags: ['ffmpeg-*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-arm64,   os: macos-latest,   target: macos-arm64 }
+          - { name: macos-x86_64,  os: macos-latest,   target: macos-x86_64 }
+          - { name: linux-x64,     os: ubuntu-22.04,   target: linux-x86_64, triple: x86_64-unknown-linux-gnu }
+          - { name: windows-x64,   os: windows-latest, msys: MINGW64,    pkgs: 'toolchain:p nasm:p zlib:p pkgconf:p', triple: x86_64-pc-windows-msvc }
+          - { name: windows-x86,   os: windows-latest, msys: MINGW32,    pkgs: 'toolchain:p nasm:p zlib:p pkgconf:p', triple: i686-pc-windows-msvc }
+          - { name: windows-arm64, os: windows-11-arm, msys: CLANGARM64, pkgs: 'toolchain:p zlib:p pkgconf:p',        triple: aarch64-pc-windows-msvc }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install nasm
+          ffmpeg/build.sh ${{ matrix.target }} out
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm gnupg
+          ffmpeg/build.sh ${{ matrix.target }} out
+          ldd out/ffmpeg
+
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        with:
+          msystem: ${{ matrix.msys }}
+          update: true
+          install: make diffutils curl tar xz
+          pacboy: ${{ matrix.pkgs }}
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          ffmpeg/build.sh windows out
+          ldd out/ffmpeg.exe | grep -vi '/c/windows' || true
+
+      - name: Name for the app
+        shell: bash
+        run: |
+          cd out
+          if [ -f ffmpeg.exe ]; then mv ffmpeg.exe viewer-ffmpeg-${{ matrix.triple }}.exe
+          elif [ -n "${{ matrix.triple }}" ]; then mv ffmpeg viewer-ffmpeg-${{ matrix.triple }}
+          else mv ffmpeg viewer-ffmpeg-${{ matrix.target }}; fi
+          ls -la
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+  release:
+    name: Publish
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/ffmpeg-')
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Universal macOS binary and the files
+        run: |
+          mkdir dist
+          lipo -create artifacts/macos-arm64/viewer-ffmpeg-macos-arm64 artifacts/macos-x86_64/viewer-ffmpeg-macos-x86_64 \
+            -output dist/viewer-ffmpeg-universal-apple-darwin
+          cp artifacts/macos-arm64/viewer-ffmpeg-macos-arm64 dist/viewer-ffmpeg-aarch64-apple-darwin
+          cp artifacts/macos-x86_64/viewer-ffmpeg-macos-x86_64 dist/viewer-ffmpeg-x86_64-apple-darwin
+          cp artifacts/linux-x64/viewer-ffmpeg-* artifacts/windows-*/viewer-ffmpeg-* dist/
+          chmod +x dist/viewer-ffmpeg-*
+          cp artifacts/linux-x64/COPYING.LGPLv2.1 dist/FFMPEG-COPYING.LGPLv2.1.txt
+          v=$(grep '^VERSION=' ffmpeg/build.sh | cut -d= -f2)
+          sum=$(grep '^SHA256=' ffmpeg/build.sh | cut -d= -f2)
+          cat > dist/FFMPEG-SOURCE.txt <<EOF
+          Viewer Studio uses FFmpeg $v (https://ffmpeg.org), licensed under the GNU Lesser General Public License 2.1
+          or later (see FFMPEG-COPYING.LGPLv2.1.txt). It is built unchanged from the official source
+          https://ffmpeg.org/releases/ffmpeg-$v.tar.xz (SHA-256 $sum) by ffmpeg/build.sh in
+          https://github.com/${{ github.repository }} at commit ${{ github.sha }}, without GPL or non-free parts.
+          The Linux build also contains libvpx and Opus (BSD licenses).
+          EOF
+          sed -i '' 's/^          //' dist/FFMPEG-SOURCE.txt
+          lipo -info dist/viewer-ffmpeg-universal-apple-darwin
+          ls -la dist
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --prerelease --title "FFmpeg for Viewer Studio ($GITHUB_REF_NAME)" \
+            --notes "Small LGPL-only FFmpeg builds used by the Viewer Studio installers (not an app version). See FFMPEG-SOURCE.txt."
