@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.1 — 2026-10-24
+- New app icon: the tile now fades from dark at the top left to lighter at the bottom right, like the other Studio apps.
+
 ## 0.2.0 — 2026-10-23
 - Plays what the WebView can't: MKV, AVI, WMV, ASF, FLV, MPG, VOB, TS / M2TS, 3GP, RM …, HEVC on Windows and Linux,
   AC-3, E-AC-3, DTS, WMA, APE, AIFF … sound, and shows HEIC / HEIF and TIFF photos. A small LGPL-only FFmpeg ships with the
