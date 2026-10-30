@@ -9,6 +9,9 @@
 - Compare two photos side by side (V, or Ctrl-click in the grid): zoom and moving run together.
 - Mirror (H, Shift+H), copy the photo to the clipboard (Ctrl+C), histogram in the info panel. Turning and mirroring are remembered per file.
 
+**Layouts**
+- New: Layouts, next to the themes (Settings → Appearance; shared by all Studio apps, any layout goes with any theme). **Adobe** is the look so far; **Modern** has rounded, floating panels and more room; **Custom** is yours: panels and tool rail left or right, density, corners, floating panels, status bar.
+
 **Player**
 - Choose the sound track and subtitles of films with several (MKV …), also subtitles inside the film (text ones; picture subtitles from DVD / Blu-ray can't be shown).
 - Chapters from the file: list, marks on the time bar, Shift+N / Shift+P.

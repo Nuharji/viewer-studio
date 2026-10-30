@@ -1411,7 +1411,7 @@ function renderSettings() {
       <h3>${esc(t('set.layout'))}</h3>${sw('dock', t('set.panels'))}${sw('autoHide', t('set.autoHide'))}`,
     appearance: `<h3>${esc(t('set.theme'))}</h3><div class="theme-grid">` + THEMES.map(th =>
       `<button class="theme-card${settings.theme === th ? ' active' : ''}" data-theme-pick="${th}">${mock(th)}
-       <div class="theme-name">${esc(t('theme.' + th))}<span>${settings.theme === th ? '&#10003;' : ''}</span></div></button>`).join('') + '</div>' +
+       <div class="theme-name">${esc(t('theme.' + th))}<span>${settings.theme === th ? '&#10003;' : ''}</span></div></button>`).join('') + '</div>' + (window.Shared ? Shared.layoutHeading() : '') +
       `<h3>${esc(t('set.stage'))}</h3><select class="wide-sel" data-sel="stage">${['dark', 'black', 'theme', 'light', 'checker'].map(s => opt(s, t('stage.' + s), settings.stage)).join('')}</select>`,
     viewing: `<h3>${esc(t('set.playback'))}</h3>${sw('autoplay', t('set.autoplay'))}${sw('remember', t('set.remember'))}${sw('subs', t('set.subs'))}
       <h3>${esc(t('set.slideSec'))} <span class="val">${settings.slideSec} s</span></h3><input type="range" data-range="slideSec" min="1" max="20" step="1" value="${settings.slideSec}">
