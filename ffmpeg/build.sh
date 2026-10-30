@@ -38,8 +38,8 @@ tar xf ffmpeg.tar.xz
 
 common=(--disable-doc --disable-ffplay --disable-ffprobe --disable-network --disable-autodetect --disable-avdevice
   --disable-debug --enable-zlib --disable-encoders --disable-muxers --disable-protocols --enable-protocol=file,pipe
-  --enable-muxer=mp4,mov,ipod,webm,matroska,image2,null,wav --disable-indevs --disable-outdevs)
-encoders=aac,png,mjpeg,pcm_s16le
+  --enable-muxer=mp4,mov,ipod,webm,matroska,image2,null,wav,mp3,flac,ogg,adts,webvtt --disable-indevs --disable-outdevs)
+encoders=aac,png,mjpeg,pcm_s16le,webvtt
 extra=()
 
 case "$target" in

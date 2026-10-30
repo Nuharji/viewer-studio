@@ -3,6 +3,7 @@
 
 mod convert;
 mod media;
+mod organize;
 mod shared;
 
 use serde::{Deserialize, Serialize};
@@ -33,7 +34,7 @@ struct Opened {
 }
 
 /// Lets the WebView load the media of one folder (not its subfolders) through the asset protocol — only what was opened.
-fn allow(app: &AppHandle, dir: &Path) {
+pub(crate) fn allow(app: &AppHandle, dir: &Path) {
     let _ = app.asset_protocol_scope().allow_directory(dir, false);
 }
 
@@ -107,7 +108,7 @@ fn header(req: &Request, name: &str) -> String {
     req.headers().get(name).and_then(|v| v.to_str().ok()).map(percent_decode).unwrap_or_default()
 }
 
-fn percent_decode(s: &str) -> String {
+pub(crate) fn percent_decode(s: &str) -> String {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
@@ -139,6 +140,43 @@ async fn save_text(app: AppHandle, name: String, filter: String, ext: String, co
     let target = f.into_path().map_err(|e| e.to_string())?;
     std::fs::write(&target, content).map_err(|e| format!("{}: {e}", target.display()))?;
     Ok(Some(target.to_string_lossy().into_owned()))
+}
+
+/// Puts a photo on the clipboard. Body: its pixels (RGBA); headers x-w, x-h.
+#[tauri::command]
+fn clipboard_image(app: AppHandle, request: Request<'_>) -> Result<(), String> {
+    let InvokeBody::Raw(bytes) = request.body() else { return Err("expected a binary body".into()) };
+    let (w, h) = (header(&request, "x-w").parse::<u32>().map_err(|e| e.to_string())?, header(&request, "x-h").parse::<u32>().map_err(|e| e.to_string())?);
+    if bytes.len() as u64 != w as u64 * h as u64 * 4 { return Err("wrong picture size".into()); }
+    app.clipboard().write_image(&tauri::image::Image::new(bytes, w, h)).map_err(|e| e.to_string())
+}
+
+/// The window's place before it became the mini player.
+#[derive(Default)]
+struct Mini(Mutex<Option<(tauri::PhysicalSize<u32>, tauri::PhysicalPosition<i32>)>>);
+
+/// The mini player: the same window, small and above the others. Off: back to its old size and place.
+#[tauri::command]
+fn set_mini(window: WebviewWindow, state: State<Mini>, on: bool) -> Result<(), String> {
+    use tauri::LogicalSize;
+    let err = |e: tauri::Error| e.to_string();
+    let mut saved = state.0.lock().unwrap();
+    if on {
+        if saved.is_none() { *saved = Some((window.inner_size().map_err(err)?, window.outer_position().map_err(err)?)); }
+        window.set_fullscreen(false).map_err(err)?;
+        window.unmaximize().map_err(err)?;
+        window.set_min_size(Some(LogicalSize::new(320.0, 200.0))).map_err(err)?;
+        window.set_size(LogicalSize::new(480.0, 300.0)).map_err(err)?;
+        window.set_always_on_top(true).map_err(err)?;
+    } else {
+        window.set_always_on_top(false).map_err(err)?;
+        window.set_min_size(Some(LogicalSize::new(900.0, 560.0))).map_err(err)?;
+        if let Some((size, pos)) = saved.take() {
+            window.set_size(size).map_err(err)?;
+            window.set_position(pos).map_err(err)?;
+        }
+    }
+    Ok(())
 }
 
 /// Shows the file in Explorer / Finder.
@@ -229,6 +267,7 @@ fn main() {
         })
         .manage(Mutex::new(Pending { ready: false, paths: args }))
         .manage(convert::Jobs::default())
+        .manage(Mini::default())
         .invoke_handler(tauri::generate_handler![
             shared::shared_get,
             shared::shared_set,
@@ -243,6 +282,17 @@ fn main() {
             convert::media_check,
             convert::media_prepare,
             convert::media_cancel,
+            convert::media_subtitle,
+            convert::media_clip,
+            organize::trash_file,
+            organize::untrash_file,
+            organize::transfer_file,
+            organize::move_back,
+            organize::queue_entries,
+            organize::pick_playlist,
+            organize::read_playlist,
+            clipboard_image,
+            set_mini,
             save_bytes,
             save_text,
             reveal,

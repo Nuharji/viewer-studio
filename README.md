@@ -6,7 +6,7 @@ Look at photos, videos, music and 3D models — the viewer of the Studio family.
 The native shell is Rust ([Tauri 2](https://tauri.app)); the UI is plain HTML/JS in `ui/`, with the same chrome
 and controls as the other Studio apps.
 
-## Features (0.1.0)
+## Features
 - **Open** files or a whole folder (dialog, drag & drop, "Open with", recent list); every file opens in a tab and pages
   through the media of its folder (← / →, Page Up / Down), sorted like Explorer ("Photo 2" before "Photo 10")
 - **Photos** — JPG, PNG, GIF, WebP, AVIF, BMP, ICO, SVG: fit or zoom at the mouse (wheel), move, rotate, slideshow,
@@ -18,7 +18,11 @@ and controls as the other Studio apps.
 - **3D models** — STL, OBJ, GLB / GLTF, 3MF, PLY: rotate, move, zoom, front / top / side views, wireframe, view as PNG;
   **width, depth, height, volume, surface and triangles** (in mm for STL/OBJ/PLY/3MF — handy for 3D printing)
 - **Notes per file** — with the current time for videos and audio (click a time to jump there); save them as Markdown
-- Info, folder (with thumbnails and a filter) and notes in the side panel; 4 app themes, background for the stage
+- **Sorting out** — grid of the folder, sort and filter, stars and color labels (kept in the app, not in the files), system
+  trash with undo, copy / move to a folder, two photos side by side with linked zoom, mirror, copy to clipboard, histogram
+- **Player** — sound track and subtitle choice (also inside the file), chapters, queue with `.m3u`, mini player, save A–B as a
+  file without converting, even out loudness and boost speech
+- Info, folder (with thumbnails and a filter), notes and queue in the side panel; 4 app themes, background for the stage
   (dark, black, theme, light, checkerboard), settings dialog, customizable shortcuts, auto-hide bars, German/English;
   theme and language shared with the other Studio apps
 
@@ -37,9 +41,10 @@ named `viewer-ffmpeg-<target triple>` into `src-tauri/binaries/` (e.g. `ffmpeg/b
 
 ## Layout
 ```
-ui/                 index.html, app.js — the viewer; viewer3d.js — 3D view (three.js, ui/vendor/three, MIT)
+ui/                 index.html, app.js — the viewer; organize.js — its plain logic (sorting, marks, histogram); viewer3d.js — 3D view (three.js, ui/vendor/three, MIT)
                     native.js, autohide.js, shortcuts.js, shared.js (the same in every Studio app)
-src-tauri/src/      main.rs — opening, dialogs, saving; media.rs — folder lists, EXIF, audio tags, subtitles;
+src-tauri/src/      main.rs — opening, dialogs, saving; media.rs — folder lists, EXIF, audio tags, subtitles, playlists;
+                    convert.rs — FFmpeg (playable copies, tracks, clips); organize.rs — trash, copy, move, queue files;
                     shared.rs — theme / language shared by the Studio apps
 src-tauri/i18n/     en.json, de.json — all texts
 ```
@@ -50,4 +55,4 @@ Release builds for Windows / macOS / Linux come from GitHub Actions when you pus
 
 ## Licenses
 Viewer Studio uses [three.js](https://threejs.org) (MIT), [kamadak-exif](https://github.com/kamadak/exif-rs) (BSD-2-Clause)
-and [lofty](https://github.com/Serial-ATA/lofty-rs) (MIT / Apache-2.0).
+[lofty](https://github.com/Serial-ATA/lofty-rs) (MIT / Apache-2.0) and, on Windows and Linux, [trash](https://github.com/Byron/trash-rs) (MIT).

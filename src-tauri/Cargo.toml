@@ -1,6 +1,6 @@
 [package]
 name = "viewer-studio"
-version = "0.2.1"
+version = "0.3.0"
 description = "View photos, videos, audio and 3D models"
 edition = "2021"
 rust-version = "1.77"
@@ -18,6 +18,14 @@ serde_json = "1"
 kamadak-exif = "0.6"
 lofty = "0.22"
 base64 = "0.22"
+
+# The system's trash, with a way back. macOS: NSFileManager says where the file went.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSError", "NSFileManager", "NSString", "NSURL"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+trash = "5"
 
 [profile.release]
 codegen-units = 1

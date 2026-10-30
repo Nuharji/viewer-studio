@@ -184,6 +184,16 @@ pub fn subtitles(video: &Path) -> Vec<(String, String)> {
     }).collect()
 }
 
+/// The files of an .m3u / .m3u8 playlist, in order. Comments and internet addresses are left out; relative paths start at
+/// the playlist's folder.
+pub fn parse_m3u(text: &str, base: &Path) -> Vec<PathBuf> {
+    text.trim_start_matches('\u{feff}').lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).filter_map(|l| {
+        if let Some(rest) = l.strip_prefix("file://") { return Some(PathBuf::from(crate::percent_decode(rest))); }
+        if l.contains("://") { return None; }
+        Some(base.join(l))
+    }).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,6 +206,12 @@ mod tests {
         let mut v = vec!["Bild 10.jpg", "bild 2.jpg", "Bild 1.jpg", "Anhang.png", "Bild 02b.jpg"];
         v.sort_by(|a, b| natural_cmp(a, b));
         assert_eq!(v, vec!["Anhang.png", "Bild 1.jpg", "bild 2.jpg", "Bild 02b.jpg", "Bild 10.jpg"]);
+    }
+
+    #[test]
+    fn playlists() {
+        let text = "\u{feff}#EXTM3U\n#EXTINF:12,Titel\nLied.mp3\n\n/a/Film.mkv\nhttp://example.org/x.mp3\nfile:///a/Gr%C3%BC%C3%9Fe.mp4\n";
+        assert_eq!(parse_m3u(text, Path::new("/base")), vec![PathBuf::from("/base/Lied.mp3"), PathBuf::from("/a/Film.mkv"), PathBuf::from("/a/Grüße.mp4")]);
     }
 
     #[test]

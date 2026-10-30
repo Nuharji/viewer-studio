@@ -304,6 +304,48 @@ audio.player{display:none}
 .cover svg{width:40%;height:40%;stroke:#fff;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .a-title{font-size:20px;font-weight:650;margin-top:8px}.a-sub{opacity:.75}
 ::cue{background:rgba(0,0,0,.65);font-size:1.05em}
+/* Stage: grid of a folder */
+.grid{position:absolute;inset:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));grid-auto-rows:max-content;align-content:start;gap:10px;padding:12px}
+.tile{position:relative;display:flex;flex-direction:column;gap:5px;padding:6px;background:var(--card-bg);border:2px solid transparent;border-radius:8px;color:var(--text);text-align:left;cursor:pointer;min-width:0}
+.tile:hover{border-color:var(--dim)}.tile.on{border-color:var(--accent)}
+.tile-img{height:128px;display:grid;place-items:center;overflow:hidden;border-radius:4px;background:var(--code-bg);color:var(--dim)}
+.tile-img img{width:100%;height:100%;object-fit:contain}
+.tile-img svg{width:38px;height:38px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.tile-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grid-none{grid-column:1/-1;color:#aaa;text-align:center;padding:60px 20px}
+/* Stars and labels */
+.mark{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.mark .st{color:#ffb300;letter-spacing:-1px}
+.mark .co{width:10px;height:10px;border-radius:50%;display:inline-block}
+.co-red{background:#e5484d}.co-yellow{background:#f5c518}.co-green{background:#30a46c}.co-blue{background:#3e8eed}
+.tile-mark{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.65);border-radius:4px;padding:0 5px;color:#fff}
+.tile-mark:empty{display:none}
+.fitem .mark{grid-column:2/4}
+.rate{display:flex;align-items:center;justify-content:space-between;padding:3px 0}.rate>span{color:var(--dim)}
+.rate button{background:none;border:0;padding:0 2px;cursor:pointer;font-size:14px;color:var(--dim);line-height:1}.rate button.on{color:#ffb300}
+.rate button .co{width:12px;height:12px;border-radius:50%;display:inline-block;opacity:.45}.rate button.on .co{opacity:1;outline:2px solid var(--strong);outline-offset:1px}
+.hist{display:block;width:100%;height:70px;background:var(--code-bg);border-radius:4px}
+.org-row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.org-row select{max-width:130px}
+.org-dir{height:26px;min-width:26px;border-radius:var(--radius);border:1px solid var(--input-border);background:none}
+.org-dir:hover{background:var(--hover)}
+/* Stage: two photos side by side */
+.cmp{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;gap:2px}
+.cmp-pane{position:relative;overflow:hidden;cursor:grab;border:2px solid transparent}
+.cmp-pane.on{border-color:var(--accent)}
+.cmp-pane img{position:absolute;left:50%;top:50%;max-width:none;transform-origin:center;user-select:none;-webkit-user-drag:none}
+.cmp-label{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.65);color:#fff;border-radius:4px;padding:1px 7px;max-width:calc(100% - 16px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Tracks, chapters */
+.seek .chaps{position:absolute;inset:0;pointer-events:none;z-index:3}
+.seek .chaps i{position:absolute;top:5px;width:2px;height:6px;background:#ffd166}
+#trackBox{display:flex;gap:4px;min-width:0}
+#trackBox select{max-width:150px}
+/* Queue */
+.qrow{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:6px;padding:4px 6px;border:1px solid transparent;border-radius:var(--radius);min-width:0}
+.qrow:hover{background:var(--hover)}.qrow.on{border-color:var(--accent);background:var(--hover)}
+.qrow.drag{opacity:.6;background:var(--hover)}
+.qgrip{cursor:ns-resize;color:var(--dim);text-align:center;touch-action:none}
+.qname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.qbtns{display:flex;gap:1px}.qbtns button{background:none;border:0;color:var(--dim);border-radius:3px;cursor:pointer;width:20px}.qbtns button:hover{background:var(--chrome);color:var(--strong)}
 /* 3D */
 .model-box{position:absolute;inset:0}
 .model-box canvas{display:block;outline:0}
@@ -333,6 +375,12 @@ body.full{grid-template-rows:1fr}
 body.full .menubar,body.full .optbar,body.full .tools,body.full .dock,body.full .status,body.full .tabs{display:none!important}
 body.full .main{grid-row:1;grid-template-columns:1fr}
 body.slideshow .stage{cursor:none}
+/* Mini player: the same window, small and above the others; only the picture and the most important controls */
+body.mini{grid-template-rows:1fr}
+body.mini .menubar,body.mini .optbar,body.mini .tools,body.mini .dock,body.mini .status,body.mini .tabs{display:none!important}
+body.mini .main{grid-row:1;grid-template-columns:1fr}
+body.mini #trackBox,body.mini #speed,body.mini #vol,body.mini .ab-label,body.mini [data-act="snapshot"],body.mini [data-act="back10"]{display:none}
+body.mini .cover{width:90px;height:90px}body.mini .audio-card{margin-bottom:56px;gap:4px}body.mini .a-title{font-size:14px;margin-top:0}
 #stZoom,#stTime{font-variant-numeric:tabular-nums}
 </style>
 </head>
@@ -370,11 +418,13 @@ body.slideshow .stage{cursor:none}
       <button data-tab="info" data-i18n="ui.info"></button>
       <button data-tab="folder" data-i18n="ui.folder"></button>
       <button data-tab="notes" data-i18n="ui.notes"></button>
+      <button data-tab="queue" data-i18n="ui.queue"></button>
     </div>
     <div class="dock-body">
       <div class="dpanel" data-panel="info"><div id="infoBox"></div></div>
       <div class="dpanel" data-panel="folder"><div id="folderBox"></div></div>
       <div class="dpanel" data-panel="notes"><div id="notesBox"></div></div>
+      <div class="dpanel" data-panel="queue"><div id="queueBox"></div></div>
     </div>
   </aside>
 </div>
@@ -383,6 +433,7 @@ body.slideshow .stage{cursor:none}
   <span id="stPos"></span>
   <span id="stDims"></span>
   <span id="stSize"></span>
+  <span id="stMark" class="mark"></span>
   <span class="flex"></span>
   <span id="stTime" hidden></span>
   <span id="stZoom" hidden></span>
@@ -398,6 +449,7 @@ body.slideshow .stage{cursor:none}
 <script src="autohide.js"></script>
 <script src="shortcuts.js"></script>
 <script src="shared.js"></script>
+<script src="organize.js"></script>
 <script src="app.js"></script>
 <script type="module" src="viewer3d.js"></script>
 </body>

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 — 2026-10-30
+**Photos: sorting out and comparing**
+- Grid of the whole folder (G): choose with click or arrows, double click or Enter opens.
+- Sort by name, date changed, size or type; filter by kind and by mark. The filter also applies to paging and the slideshow.
+- Stars (1–5) and color labels (6–9, 0 removes them), kept in the app: the files stay untouched. A file renamed outside the app loses them.
+- Delete puts a file into the system's trash, Ctrl+Z brings it back; copy and move to a folder (nothing is overwritten, a move can be undone too).
+- Compare two photos side by side (V, or Ctrl-click in the grid): zoom and moving run together.
+- Mirror (H, Shift+H), copy the photo to the clipboard (Ctrl+C), histogram in the info panel. Turning and mirroring are remembered per file.
+
+**Player**
+- Choose the sound track and subtitles of films with several (MKV …), also subtitles inside the film (text ones; picture subtitles from DVD / Blu-ray can't be shown).
+- Chapters from the file: list, marks on the time bar, Shift+N / Shift+P.
+- Queue with files from any folder: order by dragging, saved between starts, as `.m3u` to save and load (also by dropping it on the window).
+- Mini player (Shift+M): the window gets small and stays above the others; Esc goes back.
+- Save the A–B part as its own file, without converting (Ctrl+Shift+B); it starts at the key frame before A.
+- Even out loudness and boost speech for quiet recordings (until the app closes).
+- FFmpeg build ffmpeg-8.1.3-4: WebVTT for subtitles, MP3 / FLAC / Ogg / ADTS for clips (still LGPL only).
+
 ## 0.2.1 — 2026-10-24
 - New app icon: the tile now fades from dark at the top left to lighter at the bottom right, like the other Studio apps.
 

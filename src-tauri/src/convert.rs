@@ -59,12 +59,56 @@ pub struct Probe {
     /// Codec, width, height of the first real video stream (cover pictures don't count).
     pub video: Option<(String, u32, u32)>,
     pub audio: Option<String>,
+    /// Which sound stream the copy takes (0 = the first; `audio` is then its codec).
+    pub audio_track: usize,
+    pub audios: Vec<Track>,
+    pub subs: Vec<Track>,
+    pub chapters: Vec<Chapter>,
 }
+
+/// A sound or subtitle stream a film brings along.
+#[derive(Debug, Default, Clone, PartialEq, Serialize)]
+pub struct Track {
+    pub codec: String,
+    pub lang: Option<String>,
+    pub title: Option<String>,
+    /// Subtitles: text (can become WebVTT), not pictures like on DVD and Blu-ray.
+    pub text: bool,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Serialize)]
+pub struct Chapter {
+    pub start: f64,
+    pub end: f64,
+    pub title: Option<String>,
+}
+
+const TEXT_SUBS: [&str; 7] = ["subrip", "srt", "ass", "ssa", "webvtt", "mov_text", "text"];
 
 /// Reads the input description FFmpeg prints (stderr of `ffmpeg -i file`).
 pub fn parse_probe(text: &str) -> Probe {
     let mut p = Probe::default();
+    // A "title" line belongs to the chapter or stream above it.
+    enum Last { None, Chapter, Audio, Sub }
+    let mut last = Last::None;
     for line in text.lines().map(str::trim) {
+        if let Some(rest) = line.strip_prefix("Chapter #") {
+            let num = |tag: &str| rest.split(tag).nth(1).and_then(|r| r.split(',').next()).and_then(|v| v.trim().parse::<f64>().ok());
+            if let (Some(start), Some(end)) = (num("start "), num("end ")) { p.chapters.push(Chapter { start, end, title: None }); last = Last::Chapter; }
+            continue;
+        }
+        if let Some((k, v)) = line.split_once(':') {
+            if k.trim() == "title" {
+                let title = Some(v.trim().to_string()).filter(|t| !t.is_empty());
+                match last {
+                    Last::Chapter => if let Some(c) = p.chapters.last_mut() { c.title = title; },
+                    Last::Audio => if let Some(a) = p.audios.last_mut() { a.title = title; },
+                    Last::Sub => if let Some(a) = p.subs.last_mut() { a.title = title; },
+                    Last::None => {}
+                }
+                continue;
+            }
+        }
         if let Some(rest) = line.strip_prefix("Duration: ") {
             let t = rest.split(',').next().unwrap_or("");
             let parts: Vec<f64> = t.split(':').filter_map(|x| x.trim().parse().ok()).collect();
@@ -72,6 +116,17 @@ pub fn parse_probe(text: &str) -> Probe {
         }
         if !line.starts_with("Stream #") { continue; }
         let codec_after = |tag: &str| line.split(tag).nth(1).map(|r| r.split([' ', ',']).next().unwrap_or("").to_string());
+        // "Stream #0:1[0x2](ger): Audio: …": the language stands in brackets before the first ": ".
+        let lang = line.split(": ").next().and_then(|h| h.rsplit_once('(')).map(|(_, l)| l.trim_end_matches(')').to_string()).filter(|l| !l.is_empty() && l != "und");
+        last = Last::None;
+        if let Some(c) = codec_after(": Audio: ").filter(|c| !c.is_empty()) {
+            p.audios.push(Track { codec: c, lang: lang.clone(), ..Default::default() });
+            last = Last::Audio;
+        } else if let Some(c) = codec_after(": Subtitle: ").filter(|c| !c.is_empty()) {
+            let text = TEXT_SUBS.contains(&c.as_str());
+            p.subs.push(Track { codec: c, lang: lang.clone(), title: None, text });
+            last = Last::Sub;
+        }
         if let (None, Some(c)) = (&p.video, codec_after(": Video: ")) {
             if line.contains("(attached pic)") || c.is_empty() { continue; }
             let size = line.split([' ', ',']).find_map(|w| {
@@ -137,7 +192,7 @@ pub fn args(input: &str, output: &str, p: &Probe, plan: &Plan, audio_only: bool)
     };
     let has_v = !audio_only && p.video.is_some();
     if has_v { a.extend(["-map".into(), "0:v:0".into()]); } else { a.push("-vn".into()); }
-    if p.audio.is_some() { a.extend(["-map".into(), "0:a:0".into()]); }
+    if p.audio.is_some() { a.extend(["-map".into(), format!("0:a:{}", p.audio_track)]); }
     a.extend(["-sn".into(), "-dn".into()]);
     if has_v {
         if conv_v {
@@ -169,7 +224,8 @@ pub fn args(input: &str, output: &str, p: &Probe, plan: &Plan, audio_only: bool)
     }
     if ext != "webm" { a.extend(["-movflags".into(), "+faststart".into()]); }
     a.extend(["-f", if ext == "webm" { "webm" } else { "mp4" }].map(String::from));   // .m4a is MP4 too
-    a.extend(["-progress", "pipe:1", "-nostats"].map(String::from));
+    // Chapters are read from the source; in an MP4 they would become an extra text track for the player.
+    a.extend(["-map_chapters", "-1", "-progress", "pipe:1", "-nostats"].map(String::from));
     a.push(output.to_string());
     a
 }
@@ -242,31 +298,49 @@ pub struct Check {
     pub plan: String,
     /// The converted file when it is in the cache already.
     pub ready: Option<String>,
+    pub audios: Vec<Track>,
+    pub subs: Vec<Track>,
+    pub chapters: Vec<Chapter>,
 }
 
-fn plan_for(path: &Path, kind: &str) -> Result<(PathBuf, Probe, Plan), String> {
+/// The plan for one sound stream. Any but the first needs a copy, even in a file the WebView plays: it only ever plays
+/// the first.
+fn plan_for(path: &Path, kind: &str, audio: usize) -> Result<(PathBuf, Probe, Plan), String> {
     let ffmpeg = ffmpeg_path().ok_or("unavailable")?;
-    let p = probe(&ffmpeg, path)?;
-    let ext = crate::media::ext_of(path);
-    Ok((ffmpeg, p.clone(), plan(&ext, &p, kind == "audio", &TARGET)))
+    let mut p = probe(&ffmpeg, path)?;
+    let mut ext = crate::media::ext_of(path);
+    if let Some(t) = p.audios.get(audio).filter(|_| audio > 0).cloned() {
+        p.audio = Some(t.codec);
+        p.audio_track = audio;
+        ext.clear();
+    }
+    let pl = plan(&ext, &p, kind == "audio", &TARGET);
+    Ok((ffmpeg, p, pl))
+}
+
+/// The cache key of a copy: the first sound stream keeps the old name, so copies made so far stay valid.
+fn copy_key(kind: &str, audio: usize) -> String {
+    if audio > 0 { format!("{kind}-a{audio}") } else { kind.to_string() }
 }
 
 /// Whether a video or audio file needs preparing, and whether it is prepared already.
 #[tauri::command]
-pub async fn media_check(app: AppHandle, path: String, kind: String) -> Check {
+pub async fn media_check(app: AppHandle, path: String, kind: String, audio: Option<usize>) -> Check {
+    let nothing = |plan: &str| Check { plan: plan.into(), ready: None, audios: vec![], subs: vec![], chapters: vec![] };
     tauri::async_runtime::spawn_blocking(move || {
         let path = PathBuf::from(&path);
-        let (plan_s, ready) = match plan_for(&path, &kind) {
-            Err(e) if e == "unavailable" => ("unavailable".to_string(), None),
-            Err(_) => ("native".to_string(), None),   // FFmpeg can't read it either: let the WebView try
-            Ok((_, _, pl)) => {
-                let name = match &pl { Plan::Remux { ext } | Plan::Convert { ext, .. } => Some(cache_name(&path, ext, &kind)), _ => None };
+        let audio = audio.unwrap_or(0);
+        match plan_for(&path, &kind, audio) {
+            Err(e) if e == "unavailable" => nothing("unavailable"),
+            Err(_) => nothing("native"),   // FFmpeg can't read it either: let the WebView try
+            Ok((_, p, pl)) => {
+                let name = match &pl { Plan::Remux { ext } | Plan::Convert { ext, .. } => Some(cache_name(&path, ext, &copy_key(&kind, audio))), _ => None };
                 let ready = name.and_then(|n| cache_dir(&app).ok().map(|d| d.join(n))).filter(|p| p.is_file()).map(|p| p.to_string_lossy().into_owned());
-                (match pl { Plan::Native => "native", Plan::Remux { .. } => "remux", Plan::Convert { .. } => "convert", Plan::Nothing => "nothing" }.to_string(), ready)
+                let plan = match pl { Plan::Native => "native", Plan::Remux { .. } => "remux", Plan::Convert { .. } => "convert", Plan::Nothing => "nothing" }.to_string();
+                Check { plan, ready, audios: p.audios, subs: p.subs, chapters: p.chapters }
             }
-        };
-        Check { plan: plan_s, ready }
-    }).await.unwrap_or(Check { plan: "native".into(), ready: None })
+        }
+    }).await.unwrap_or(nothing("native"))
 }
 
 #[derive(Serialize, Clone)]
@@ -275,14 +349,15 @@ struct Progress { id: u64, done: f64 }
 /// Prepares a file for the WebView (see the module notes) and returns the path of the playable copy. Progress goes to
 /// the UI as "media-progress" events ({id, done: 0…1}).
 #[tauri::command]
-pub async fn media_prepare(app: AppHandle, path: String, kind: String, id: u64) -> Result<String, String> {
+pub async fn media_prepare(app: AppHandle, path: String, kind: String, id: u64, audio: Option<usize>) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let src = PathBuf::from(&path);
         let dir = cache_dir(&app)?;
         if kind == "image" { return prepare_image(&app, &src, &dir, id); }
-        let (ffmpeg, p, pl) = plan_for(&src, &kind)?;
+        let audio = audio.unwrap_or(0);
+        let (ffmpeg, p, pl) = plan_for(&src, &kind, audio)?;
         let ext = match &pl { Plan::Remux { ext } | Plan::Convert { ext, .. } => ext.clone(), _ => return Ok(path) };
-        let out = dir.join(cache_name(&src, &ext, &kind));
+        let out = dir.join(cache_name(&src, &ext, &copy_key(&kind, audio)));
         if out.is_file() { touch(&out); return Ok(out.to_string_lossy().into_owned()); }
         let part = out.with_extension(format!("part.{ext}"));
         let a = args(&src.to_string_lossy(), &part.to_string_lossy(), &p, &pl, kind == "audio");
@@ -290,6 +365,74 @@ pub async fn media_prepare(app: AppHandle, path: String, kind: String, id: u64) 
         std::fs::rename(&part, &out).map_err(|e| e.to_string())?;
         trim_cache(&dir, 4 << 30);
         Ok(out.to_string_lossy().into_owned())
+    }).await.map_err(|e| e.to_string())?
+}
+
+/// A subtitle stream inside a film as WebVTT (only text ones; FFmpeg reads through the whole file, so it is kept in the cache).
+#[tauri::command]
+pub async fn media_subtitle(app: AppHandle, path: String, index: usize, id: u64) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let src = PathBuf::from(&path);
+        let dir = cache_dir(&app)?;
+        let out = dir.join(cache_name(&src, "vtt", &format!("sub{index}")));
+        if !out.is_file() {
+            let ffmpeg = ffmpeg_path().ok_or("unavailable")?;
+            let p = probe(&ffmpeg, &src)?;
+            let part = out.with_extension("part.vtt");
+            let a = subtitle_args(&path, &part.to_string_lossy(), index);
+            run(&app, &ffmpeg, &a, p.duration, id)?;
+            std::fs::rename(&part, &out).map_err(|e| e.to_string())?;
+        }
+        std::fs::read_to_string(&out).map_err(|e| e.to_string())
+    }).await.map_err(|e| e.to_string())?
+}
+
+fn subtitle_args(input: &str, output: &str, index: usize) -> Vec<String> {
+    ["-hide_banner", "-nostdin", "-y", "-i", input, "-map", &format!("0:s:{index}"), "-c:s", "webvtt", "-f", "webvtt", "-progress", "pipe:1", "-nostats", output]
+        .iter().map(|s| s.to_string()).collect()
+}
+
+/// What a clip of a file is written as: FFmpeg's container and the file ending. The source's own where the build has
+/// it; Matroska holds everything else.
+pub fn clip_format(ext: &str, kind: &str) -> (&'static str, &'static str) {
+    match ext {
+        "mp4" => ("mp4", "mp4"), "m4v" => ("mp4", "m4v"), "m4a" => ("mp4", "m4a"), "mov" => ("mov", "mov"), "webm" => ("webm", "webm"),
+        "mkv" => ("matroska", "mkv"), "mp3" => ("mp3", "mp3"), "flac" => ("flac", "flac"), "ogg" | "oga" => ("ogg", "ogg"),
+        "opus" => ("ogg", "opus"), "aac" => ("adts", "aac"), "wav" => ("wav", "wav"),
+        _ if kind == "audio" => ("matroska", "mka"),
+        _ => ("matroska", "mkv"),
+    }
+}
+
+/// Copies the streams from a to b without converting, so it takes seconds; it starts at the key frame before a.
+pub fn clip_args(input: &str, output: &str, a: f64, b: f64, kind: &str, muxer: &str) -> Vec<String> {
+    let mut v: Vec<String> = ["-hide_banner", "-nostdin", "-y", "-ss", &format!("{a:.3}"), "-i", input, "-t", &format!("{:.3}", (b - a).max(0.0))].iter().map(|s| s.to_string()).collect();
+    if kind == "audio" {
+        v.extend(["-vn", "-map", "0:a"].map(String::from));
+    } else {
+        v.extend(["-map", "0:v:0", "-map", "0:a?"].map(String::from));
+        if muxer == "matroska" { v.extend(["-map", "0:s?"].map(String::from)); }
+    }
+    v.extend(["-c", "copy", "-avoid_negative_ts", "make_zero", "-f", muxer, "-progress", "pipe:1", "-nostats", output].map(String::from));
+    v
+}
+
+/// Saves the A–B part of a file after a save dialog. Returns the new file, or nothing when the dialog was cancelled.
+#[tauri::command]
+pub async fn media_clip(app: AppHandle, path: String, kind: String, a: f64, b: f64, id: u64, name: String) -> Result<Option<String>, String> {
+    let src = PathBuf::from(&path);
+    let (muxer, ext) = clip_format(&crate::media::ext_of(&src), &kind);
+    let Some(f) = crate::shared::file_dialog(&app).set_file_name(format!("{name}.{ext}")).add_filter(ext, &[ext]).blocking_save_file() else { return Ok(None) };
+    let target = f.into_path().map_err(|e| e.to_string())?;
+    if target == src { return Err("The clip can't replace the file it comes from.".into()); }
+    tauri::async_runtime::spawn_blocking(move || {
+        let ffmpeg = ffmpeg_path().ok_or("unavailable")?;
+        // Written next to the target first: a stopped clip leaves an existing file as it was.
+        let part = target.with_extension(format!("part.{ext}"));
+        let v = clip_args(&path, &part.to_string_lossy(), a, b, &kind, muxer);
+        if let Err(e) = run(&app, &ffmpeg, &v, b - a, id) { let _ = std::fs::remove_file(&part); return Err(e); }
+        std::fs::rename(&part, &target).map_err(|e| e.to_string())?;
+        Ok(Some(target.to_string_lossy().into_owned()))
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -369,11 +512,61 @@ At least one output file must be specified";
         assert_eq!((a.video, a.audio.as_deref()), (None, Some("mp3")), "cover pictures are not a video");
     }
 
+    const FILM: &str = "Input #0, matroska,webm, from 'Film.mkv':
+  Metadata:
+    title           : Der Film
+  Duration: 00:10:00.00, start: 0.000000, bitrate: 4321 kb/s
+  Chapters:
+    Chapter #0:0: start 0.000000, end 60.500000
+      Metadata:
+        title           : Anfang
+    Chapter #0:1: start 60.500000, end 600.000000
+  Stream #0:0: Video: h264 (High), yuv420p(progressive), 1920x1080, 25 fps
+  Stream #0:1(ger): Audio: aac (LC), 48000 Hz, stereo, fltp (default)
+      Metadata:
+        title           : Deutsch
+  Stream #0:2[0x3](eng): Audio: ac3, 48000 Hz, 5.1(side), fltp, 384 kb/s
+  Stream #0:3(ger): Subtitle: subrip (srt) (default)
+      Metadata:
+        title           : Deutsch: alles
+  Stream #0:4(und): Subtitle: hdmv_pgs_subtitle (pgssub), 1920x1080";
+
+    #[test]
+    fn reads_tracks_and_chapters() {
+        let p = parse_probe(FILM);
+        assert_eq!(p.audio.as_deref(), Some("aac"));
+        assert_eq!(p.audios.iter().map(|t| (t.codec.as_str(), t.lang.as_deref(), t.title.as_deref())).collect::<Vec<_>>(),
+            vec![("aac", Some("ger"), Some("Deutsch")), ("ac3", Some("eng"), None)]);
+        assert_eq!(p.subs.iter().map(|t| (t.codec.as_str(), t.lang.as_deref(), t.title.as_deref(), t.text)).collect::<Vec<_>>(),
+            vec![("subrip", Some("ger"), Some("Deutsch: alles"), true), ("hdmv_pgs_subtitle", None, None, false)]);
+        assert_eq!(p.chapters, vec![Chapter { start: 0.0, end: 60.5, title: Some("Anfang".into()) }, Chapter { start: 60.5, end: 600.0, title: None }]);
+        let mut second = p.clone();
+        second.audio = Some("ac3".into()); second.audio_track = 1;
+        let a = args("a.mkv", "b.mp4", &second, &Plan::Convert { video: false, audio: true, ext: "mp4".into() }, false).join(" ");
+        assert!(a.contains("-map 0:a:1") && a.contains("-c:a aac"), "{a}");
+    }
+
+    #[test]
+    fn clips_and_subtitles() {
+        assert_eq!(clip_format("mp3", "audio"), ("mp3", "mp3"));
+        assert_eq!(clip_format("mkv", "video"), ("matroska", "mkv"));
+        assert_eq!(clip_format("avi", "video"), ("matroska", "mkv"));
+        assert_eq!(clip_format("wma", "audio"), ("matroska", "mka"));
+        let c = clip_args("in.mkv", "out.mkv", 10.0, 12.5, "video", "matroska").join(" ");
+        assert!(c.starts_with("-hide_banner -nostdin -y -ss 10.000 -i in.mkv -t 2.500 -map 0:v:0 -map 0:a? -map 0:s? -c copy"), "{c}");
+        assert!(c.ends_with("-f matroska -progress pipe:1 -nostats out.mkv"), "{c}");
+        let m = clip_args("in.mp3", "out.mp3", 1.0, 2.0, "audio", "mp3").join(" ");
+        assert!(m.contains("-vn -map 0:a -c copy") && !m.contains("0:v"), "{m}");
+        assert!(subtitle_args("a.mkv", "b.vtt", 2).join(" ").contains("-map 0:s:2 -c:s webvtt -f webvtt"));
+        assert_eq!(copy_key("video", 0), "video");
+        assert_ne!(copy_key("video", 1), "video");
+    }
+
     #[test]
     fn plans_per_platform() {
         let mac = Target { native: &["mp4", "mov", "mp3"], video_ok: &["h264", "hevc"], audio_ok: &["aac", "mp3"], convert_video: "mp4", convert_audio: "m4a" };
         let linux = Target { native: &["mp4", "webm", "mp3"], video_ok: &["h264", "vp8", "vp9"], audio_ok: &["aac", "opus", "vorbis", "mp3"], convert_video: "webm", convert_audio: "webm" };
-        let p = |v: Option<&str>, a: Option<&str>| Probe { duration: 10.0, video: v.map(|c| (c.to_string(), 1280, 720)), audio: a.map(String::from) };
+        let p = |v: Option<&str>, a: Option<&str>| Probe { duration: 10.0, video: v.map(|c| (c.to_string(), 1280, 720)), audio: a.map(String::from), ..Default::default() };
         let conv = |video, audio, ext: &str| Plan::Convert { video, audio, ext: ext.into() };
         assert_eq!(plan("mp4", &p(Some("h264"), Some("aac")), false, &mac), Plan::Native);
         assert_eq!(plan("mkv", &p(Some("h264"), Some("aac")), false, &mac), Plan::Remux { ext: "mp4".into() });
@@ -400,12 +593,12 @@ At least one output file must be specified";
         let a = args("in.mkv", "out.mp4", &p, &pl, false).join(" ");
         assert!(a.starts_with("-hide_banner -nostdin -y -i in.mkv -map 0:v:0 -map 0:a:0 -sn -dn -c:v copy -c:a aac -b:a 192k -ac 2 -movflags +faststart -f mp4"), "{a}");
         assert!(a.ends_with("-progress pipe:1 -nostats out.mp4"));
-        let hevc = Probe { duration: 1.0, video: Some(("hevc".into(), 3840, 2160)), audio: None };
+        let hevc = Probe { duration: 1.0, video: Some(("hevc".into(), 3840, 2160)), audio: None, ..Default::default() };
         let r = args("a.mkv", "b.mp4", &hevc, &Plan::Remux { ext: "mp4".into() }, false).join(" ");
         assert!(r.contains("-c:v copy -tag:v hvc1") && !r.contains("-c:a"), "{r}");
         let w = args("a.avi", "b.webm", &hevc, &Plan::Convert { video: true, audio: false, ext: "webm".into() }, false).join(" ");
         assert!(w.contains("-c:v libvpx -deadline realtime") && w.contains("-b:v 25000k") && w.contains("-f webm") && !w.contains("faststart"), "{w}");
-        let m = args("x.wma", "y.m4a", &Probe { duration: 1.0, video: None, audio: Some("wmav2".into()) }, &Plan::Convert { video: false, audio: true, ext: "m4a".into() }, true).join(" ");
+        let m = args("x.wma", "y.m4a", &Probe { duration: 1.0, video: None, audio: Some("wmav2".into()), ..Default::default() }, &Plan::Convert { video: false, audio: true, ext: "m4a".into() }, true).join(" ");
         assert!(m.contains("-vn -map 0:a:0") && m.contains("-c:a aac"), "{m}");
         assert_eq!(video_kbps(640, 360), 1500);
         assert_eq!(video_kbps(1920, 1080), 8000);
