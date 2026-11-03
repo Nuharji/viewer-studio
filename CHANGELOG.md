@@ -21,6 +21,9 @@
 - Even out loudness and boost speech for quiet recordings (until the app closes).
 - FFmpeg build ffmpeg-8.1.3-4: WebVTT for subtitles, MP3 / FLAC / Ogg / ADTS for clips (still LGPL only).
 
+**MCP**
+- New: MCP server. Started with `--mcp`, Viewer Studio opens no window and lets Claude, ChatGPT and other MCP clients use it: `list_folder`, `photo_info`, `audio_info`, `subtitles`. It only reads; marks and the trash stay with the window. Setup: see README → MCP.
+
 ## 0.2.1 — 2026-10-24
 - New app icon: the tile now fades from dark at the top left to lighter at the bottom right, like the other Studio apps.
 

@@ -39,6 +39,34 @@ FFmpeg is built unchanged from the official sources in GitHub Actions (`.github/
 named `viewer-ffmpeg-<target triple>` into `src-tauri/binaries/` (e.g. `ffmpeg/build.sh macos-arm64 out`), or let
 `STUDIO_FFMPEG` point to one; without it the app works as before.
 
+## MCP
+Viewer Studio is also an MCP server, so Claude (Desktop or Code), ChatGPT and other MCP clients can use what it can do:
+started with `--mcp`, the program opens no window and speaks MCP on stdin / stdout until the client closes it.
+
+- `list_folder` — The media files of a folder that Viewer Studio can show, with kind and size.
+- `photo_info` — Properties of a photo: size, camera and shot details (EXIF).
+- `audio_info` — Tags of an audio file: title, artist, album, duration …
+- `subtitles` — The subtitle files next to a video: [name, text as WebVTT].
+
+It only reads; marks and the trash stay with the window. Files are given as full paths.
+
+Claude Code: `claude mcp add viewer-studio -- "/Applications/Viewer Studio.app/Contents/MacOS/viewer-studio" --mcp`.
+Claude Desktop (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "viewer-studio": {
+      "command": "/Applications/Viewer Studio.app/Contents/MacOS/viewer-studio",
+      "args": [
+        "--mcp"
+      ]
+    }
+  }
+}
+```
+The program is `/Applications/Viewer Studio.app/Contents/MacOS/viewer-studio` on macOS, `viewer-studio.exe` in the install folder on
+Windows, and `viewer-studio` (or the AppImage) on Linux.
+
 ## Layout
 ```
 ui/                 index.html, app.js — the viewer; organize.js — its plain logic (sorting, marks, histogram); viewer3d.js — 3D view (three.js, ui/vendor/three, MIT)
