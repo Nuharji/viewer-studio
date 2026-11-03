@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.1 — 2026-11-03
+- Fix (macOS): the app no longer asks again and again for access to your Documents folder (or Desktop, Downloads). The app is now signed as a whole, so macOS can remember your answer. After an update, macOS may ask once more.
+
 ## 0.3.0 — 2026-10-30
 **Photos: sorting out and comparing**
 - Grid of the whole folder (G): choose with click or arrows, double click or Enter opens.
