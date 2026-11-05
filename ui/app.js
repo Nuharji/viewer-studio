@@ -36,7 +36,7 @@ const fmtTime = s => {
 const fmtDate = ms => ms ? new Date(ms).toLocaleString(loc(), {dateStyle: 'medium', timeStyle: 'short'}) : '';
 
 /* ================= Settings and state ================= */
-const THEMES = ['dark', 'light', 'github', 'github-dark', 'cli', 'midnight', 'dusk', 'graphite', 'contrast', 'sand', 'rose'];
+const THEMES = ['dark', 'light', 'github', 'github-dark', 'cli', 'cli-amber', 'cli-cyan', 'cli-magenta', 'cli-white', 'midnight', 'dusk', 'graphite', 'contrast', 'sand', 'rose'];
 const DEF = {keys: {}, autoHide: false, lang: 'auto', theme: 'dark', dock: true, dockTab: 'info', stage: 'dark',
   slideSec: 4, autoplay: true, remember: true, volume: 1, muted: false, loopFile: false, subs: true, sortKey: 'name', sortDir: 1};
 let settings = {...DEF}, recent = [], tabs = [], active = -1, booted = false, seq = 0;
@@ -1221,7 +1221,7 @@ const A = {
   toggleAutoHide: () => { settings.autoHide = !settings.autoHide; applySettings(); },
   settings: () => openSettings(),
   langAuto: () => setLang('auto'), langEn: () => setLang('en'), langDe: () => setLang('de'),
-  themeDark: () => setTheme('dark'), themeLight: () => setTheme('light'), themeGithub: () => setTheme('github'), themeGithubDark: () => setTheme('github-dark'), themeCli: () => setTheme('cli'), themeMidnight: () => setTheme('midnight'), themeDusk: () => setTheme('dusk'), themeGraphite: () => setTheme('graphite'), themeContrast: () => setTheme('contrast'), themeSand: () => setTheme('sand'), themeRose: () => setTheme('rose'),
+  themeDark: () => setTheme('dark'), themeLight: () => setTheme('light'), themeGithub: () => setTheme('github'), themeGithubDark: () => setTheme('github-dark'), themeCli: () => setTheme('cli'), themeCliAmber: () => setTheme('cli-amber'), themeCliCyan: () => setTheme('cli-cyan'), themeCliMagenta: () => setTheme('cli-magenta'), themeCliWhite: () => setTheme('cli-white'), themeMidnight: () => setTheme('midnight'), themeDusk: () => setTheme('dusk'), themeGraphite: () => setTheme('graphite'), themeContrast: () => setTheme('contrast'), themeSand: () => setTheme('sand'), themeRose: () => setTheme('rose'),
   shortcuts: () => {
     let h = '';
     MENUS.forEach(([m, items]) => {
@@ -1263,7 +1263,7 @@ const MENUS = [
     ['langAuto', null, () => settings.lang === 'auto'], ['langEn', null, () => settings.lang === 'en'], ['langDe', null, () => settings.lang === 'de'],
     '-', '#menu.theme',
     ['themeDark', null, () => settings.theme === 'dark'], ['themeLight', null, () => settings.theme === 'light'],
-    ['themeGithub', null, () => settings.theme === 'github'], ['themeGithubDark', null, () => settings.theme === 'github-dark'], ['themeCli', null, () => settings.theme === 'cli'], ['themeMidnight', null, () => settings.theme === 'midnight'], ['themeDusk', null, () => settings.theme === 'dusk'], ['themeGraphite', null, () => settings.theme === 'graphite'], ['themeContrast', null, () => settings.theme === 'contrast'], ['themeSand', null, () => settings.theme === 'sand'], ['themeRose', null, () => settings.theme === 'rose']]],
+    ['themeGithub', null, () => settings.theme === 'github'], ['themeGithubDark', null, () => settings.theme === 'github-dark'], ['themeCli', null, () => settings.theme === 'cli'], ['themeCliAmber', null, () => settings.theme === 'cli-amber'], ['themeCliCyan', null, () => settings.theme === 'cli-cyan'], ['themeCliMagenta', null, () => settings.theme === 'cli-magenta'], ['themeCliWhite', null, () => settings.theme === 'cli-white'], ['themeMidnight', null, () => settings.theme === 'midnight'], ['themeDusk', null, () => settings.theme === 'dusk'], ['themeGraphite', null, () => settings.theme === 'graphite'], ['themeContrast', null, () => settings.theme === 'contrast'], ['themeSand', null, () => settings.theme === 'sand'], ['themeRose', null, () => settings.theme === 'rose']]],
   ['help', [['shortcuts', 'F1'], '-', ['about']]]
 ];
 const noGrid = () => !cur() || !cur().grid;
