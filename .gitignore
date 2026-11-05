@@ -7,3 +7,4 @@ flatpak/*.deb
 build.log
 flatpak/app.deb
 src-tauri/binaries/
+Todo.md
