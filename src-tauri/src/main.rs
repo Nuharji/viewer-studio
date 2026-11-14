@@ -1,6 +1,7 @@
 // Hide the console window in release builds on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod appicon;
 mod convert;
 mod media;
 mod organize;
@@ -272,6 +273,7 @@ fn main() {
         .manage(convert::Jobs::default())
         .manage(Mini::default())
         .invoke_handler(tauri::generate_handler![
+            appicon::set_dock_icon,
             shared::shared_get,
             shared::shared_set,
             texts,
